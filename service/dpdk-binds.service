@@ -1,0 +1,14 @@
+[Unit]
+Description=Devices Binding for DPDK
+Before=network.target network.service openvswitch.service
+PartOf=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/dpdk-binds
+RemainAfterExit=yes
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target

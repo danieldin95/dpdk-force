@@ -1,0 +1,86 @@
+#!/bin/bash
+set -x
+kubeenvfile=$1
+memoryfile=$2
+
+function checkexist()
+{
+    dstfile=$1
+    if [ ! -f $dstfile ];then
+      echo "not found file $dstfile"
+      exit 0
+    fi
+}
+function checksize()
+{
+    dstfile=$1
+    size=$(du -b $dstfile|awk '{print $1}')
+    if [ "$size" -eq 0 ];then
+      echo "file size is zero"
+      exit 0
+    fi
+}
+
+checkexist $kubeenvfile
+checksize $kubeenvfile
+checkexist $memoryfile
+
+kubepods_memory_mb=$(cat "$memoryfile" |grep kubepods_memory_limits|awk -F: '{print $2}')
+if [ "${kubepods_memory_mb}"x = x ];then
+    kubepods_memory_mb=$(cat "$memoryfile" |grep compute_reserved_memory|awk -F: '{print $2}')
+    if [ "${kubepods_memory_mb}"x = x ];then
+       echo "not found pod max memory on file:"$memoryfile
+       exit 0
+    fi
+fi
+
+memory_kb=`cat /proc/meminfo | grep MemTotal | awk '{print$2}'`
+memory_mb=`expr $memory_kb / 1024`
+if [ "${memory_mb}"x = x ];then
+   echo "not found memory_mb on node:"$(hostname)
+   exit 0
+fi
+
+# Sub hugePage value details in #EAS-94241
+hp_mb=0
+hp_total=`cat /proc/meminfo | grep HugePages_Total | awk '{print$2}'`
+hp_size=`cat /proc/meminfo | grep Hugepagesize | awk '{print$2}'`
+if [ $hp_size -ne 0 ] && [ $hp_total -ne 0 ]; then
+    hp_kb=`expr $hp_total \* $hp_size`
+    hp_mb=`expr $hp_kb / 1024`
+
+    #(fixme), set kubepods=10Gb if hugepage configured
+    kubepods_memory_mb=10240
+fi
+
+system_reserved_mb=`expr $memory_mb - $kubepods_memory_mb - $hp_mb`
+if [ "$system_reserved_mb" -lt 0 ];then
+   echo "after calculate; system-reserved-mb($system_reserved_mb) is less-than zero"
+   exit 0
+fi
+
+tmpenvfile=/tmp/env-kubelet
+cp -f $kubeenvfile $tmpenvfile
+
+# WARNING replace memory=[0-9]+ fix EAS-68846
+key="system-reserved"
+if cat $tmpenvfile | grep $key; then
+    sed -i -r "/${key}/s/memory=[0-9]+/memory=${system_reserved_mb}/" $tmpenvfile
+fi
+
+# Re-generate cpuset.mems to fix #EAS-53655
+top_cpuset_mems=$(cat /sys/fs/cgroup/cpuset/cpuset.mems)
+key="kubepods-cpuset.mems"
+if cat $tmpenvfile | grep $key; then
+    sed -i -E "s/${key}=[^ ]*/${key}=${top_cpuset_mems}/" $tmpenvfile
+fi
+
+checksize $tmpenvfile
+tmpmd5=$(md5sum $tmpenvfile | awk '{print $1}')
+envmd5=$(md5sum $kubeenvfile | awk '{print $1}')
+if [ "$tmpmd5" = "$envmd5" ];then
+  echo "no need update"
+  exit 0
+fi
+cp -f $tmpenvfile $kubeenvfile
+

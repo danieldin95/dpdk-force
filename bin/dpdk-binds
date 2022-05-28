@@ -1,0 +1,58 @@
+#! /bin/bash
+
+set -ex
+
+DPDK_DIR="/etc/dpdk"
+
+function mellanox_4_5() {
+  local pci=$1
+  if lspci -s $pci | grep -i -e ConnectX-4 -i -e ConnectX-5; then
+    return 0
+  fi
+  return 1
+}
+
+function get_port_pci() {
+  local port=$1
+  ethtool -i $port | grep bus-info | sed 's/bus-info: //g'
+}
+
+function find_port_pci() {
+  local port=$1; shift
+  local pci=$(get_port_pci $port)
+  if [ "$pci"x != x ]; then
+    echo $pci
+    return
+  fi
+  local file=$(find $DPDK_DIR -name kernel-$port-[0-9]*)
+  local pci=$(echo $file | awk -F "$port-" '{print $2}')
+  if [ "$pci"x == x ]; then
+    echo "ERROR: $port not-found pci-address"
+    return 1
+  fi
+  echo $pci
+}
+
+function load_module() {
+  modprobe vfio
+  modprobe vfio-pci
+  if lspci | grep -i Mellanox; then
+    modprobe -a ib_uverbs mlx5_core mlx5_ib
+  fi
+}
+
+# dpdk-devbind.py -b vfio-pci 0000:5e:00.0
+function bind_device() {
+  [ -f "$DPDK_DIR/devices" ] || return 0
+  local devices=$(cat $DPDK_DIR/devices)
+  for port in $devices; do
+    if pci=$(find_port_pci $port); then
+        if ! mellanox_4_5 $pci; then
+          dpdk-devbind.py -b vfio-pci $pci
+        fi
+    fi
+  done
+}
+
+load_module
+bind_device
