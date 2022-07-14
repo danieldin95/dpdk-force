@@ -5,8 +5,8 @@ set -ex
 DPDK_MEM=1024
 
 bind_device() {
-  # dpdk-devbind -b vfio-pci 0000:02:03.0
-  dpdk-devbind -s
+  # dpdk-devbind.py -b vfio-pci 0000:02:03.0
+  dpdk-devbind.py -s
 }
 
 setup_openvswitch() {
@@ -17,7 +17,7 @@ setup_openvswitch() {
   ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=try
   #ovs-vsctl --no-wait set Open_vSwitch . other_config:per-port-memory=true
 
-  #ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-extra="--iova-mode=va"
+  ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-extra="--iova-mode=pa"
   ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$DPDK_MEM,0"
   ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-limit="$DPDK_MEM,0"
   ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask=0x0C
