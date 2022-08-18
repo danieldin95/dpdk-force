@@ -26,8 +26,8 @@ setup_openvswitch() {
 
 add_bridge() {
   ovs-vsctl --may-exist add-br br-phy -- set bridge br-phy datapath_type=netdev
-  #ovs-vsctl --may-exist add-port br-phy dp-0203 -- set Interface dp-0203 type=dpdk options:dpdk-devargs=0000:02:03.0
-  #ovs-vsctl --may-exist add-port br-phy dp-0204 -- set Interface dp-0203 type=dpdk options:dpdk-devargs=0000:02:04.0
+  #ovs-vsctl --may-exist add-port br-phy dp-0203 -- set Interface dp-0203 type=dpdk options:dpdk-devargs=0000:02:03.0 options:flow-ctrl-autoneg="true"
+  #ovs-vsctl --may-exist add-port br-phy dp-0204 -- set Interface dp-0203 type=dpdk options:dpdk-devargs=0000:02:04.0 options:flow-ctrl-autoneg="true"
 }
 
 bind_device
