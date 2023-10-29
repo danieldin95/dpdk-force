@@ -3,7 +3,7 @@
 set -ex
 
 
-HUGEPAGES=2048
+HUGEPAGES=$((1024*1))
 
 iommu_enabled() {
   find /sys/class/iommu | grep -i dmar
