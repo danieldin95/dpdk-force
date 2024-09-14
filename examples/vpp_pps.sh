@@ -29,7 +29,7 @@ do_loop() {
   prev_tx=$(get_tx)
   prev_rb=$(get_rb)
   prev_tb=$(get_tb)
-  printf "Rx packets/s\tTx packets/s\tRx Kib/s\tTx Kib/s\n"
+  printf "\t\t\t\tRx packets/s\tTx packets/s\tRx Kib/s\tTx Kib/s\n"
   while true; do
     sleep $interval
 
@@ -38,12 +38,13 @@ do_loop() {
     curr_rb=$(get_rb)
     curr_tb=$(get_tb)
 
+    now=$(date --rfc-3339=second)
     rx_pps=$(( (curr_rx - prev_rx) / interval ))
     tx_pps=$(( (curr_tx - prev_tx) / interval ))
     rx_kps=$(( (curr_rb - prev_rb) / interval / 128 ))
     tx_kps=$(( (curr_tb - prev_tb) / interval / 128 ))
 
-    printf "%-10s\t%-10s\t%-8s\t%-8s\t%s\n" $rx_pps $tx_pps $rx_kps $tx_kps
+    printf "%-12s\t%-10s\t%-10s\t%-8s\t%-8s\t%s\n" "$now" $rx_pps $tx_pps $rx_kps $tx_kps
 
     prev_rx=$curr_rx
     prev_tx=$curr_tx
