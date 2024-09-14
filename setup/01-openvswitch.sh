@@ -4,30 +4,28 @@ set -ex
 
 DPDK_MEM=$((1024*1))
 
-bind_device() {
-  dpdk-devbind.py -b vfio-pci 0000:02:03.0
-  dpdk-devbind.py -b vfio-pci 0000:02:04.0
-  dpdk-devbind.py -b vfio-pci 0000:02:05.0
-  dpdk-devbind.py -b vfio-pci 0000:00:09.0
-  dpdk-devbind.py -s
-}
-
 setup_openvswitch() {
-  sed -i 's/OVS_USER_ID=.*/OVS_USER_ID="root:hugetlbfs"/g' /etc/sysconfig/openvswitch
+  if [ -e /etc/sysconfig/openvswitch ]; then
+    sed -i 's/OVS_USER_ID=.*/OVS_USER_ID="root:hugetlbfs"/g' /etc/sysconfig/openvswitch
+  fi
   rm -vf /var/run/openvswitch.useropts
+  
+  pidof grep ovs-vswitchd || /usr/share/openvswitch/scripts/ovs-ctl start
   
   ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
   ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=try
-  #ovs-vsctl --no-wait set Open_vSwitch . other_config:per-port-memory=true
+  # ovs-vsctl --no-wait set Open_vSwitch . other_config:per-port-memory=true
 
   ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-extra="--iova-mode=pa"
   ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$DPDK_MEM,0"
   ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-limit="$DPDK_MEM,0"
   ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask=0xFFFFC
+
+  /usr/share/openvswitch/scripts/ovs-ctl restart
   ovs-vsctl list Open_vSwitch
 }
 
-rxq_affinity() {
+set_affinity() {
   port=$1
   rxq_n=$2
   cpu_s=$3
@@ -44,13 +42,15 @@ rxq_affinity() {
   ovs-vsctl set Interface $port options:n_rxq=$rxq_n other_config:$affinity_args
 }
 
+
 add_bridge() {
-  ovs-vsctl --may-exist add-br br-eth6 -- set bridge br-eth6 datapath_type=netdev
-  ovs-vsctl --if-exists del-port eth6
-  ovs-vsctl --may-exist add-port br-eth6 eth6 -- set Interface eth6 type=dpdk options:dpdk-devargs=0000:00:09.0 options:flow-ctrl-autoneg="true"
-  rxq_affinity eth6 20 2
+  dpdk-devbind.py -b vfio-pci 0000:02:00.0
+  dpdk-devbind.py -s
+  ovs-vsctl --may-exist add-br br-eth2 -- set bridge br-eth2 datapath_type=netdev
+  ovs-vsctl --if-exists del-port eth2
+  ovs-vsctl --may-exist add-port br-eth2 eth2 -- set Interface eth2 type=dpdk options:dpdk-devargs=0000:00:02.0 options:flow-ctrl-autoneg="true"
+  # set_affinity eth2 20 2
 }
 
-bind_device
 setup_openvswitch
 add_bridge
